@@ -115,14 +115,20 @@ with tabs[0]:
     # show latest price cards
     cols = st.columns(len(tickers))
     for i, t in enumerate(tickers):
-        df = data_dict.get(t)
-        if df is None or df.empty:
+    df = data_dict.get(t)
+    try:
+        if df is None or df.empty or 'Close' not in df.columns:
             cols[i].metric(label=t, value="No data", delta="—")
-        else:
-            last_price = df['Close'].iloc[-1]
-            prev = df['Close'].iloc[-2] if len(df) > 1 else last_price
-            delta = last_price - prev
-            cols[i].metric(label=t, value=f"${last_price:,.2f}", delta=f"{delta:+.2f}")
+            continue
+
+        last_price = float(df['Close'].iloc[-1])
+        prev = float(df['Close'].iloc[-2]) if len(df) > 1 else last_price
+        delta = last_price - prev
+        cols[i].metric(label=t, value=f"${last_price:,.2f}", delta=f"{delta:+.2f}")
+    except Exception as e:
+        cols[i].metric(label=t, value="Error", delta="—")
+        st.warning(f"⚠️ Error processing {t}: {e}")
+
 
     # interactive chart for selected ticker (first by default)
     show_t = st.selectbox("Show ticker chart", tickers, index=0)
