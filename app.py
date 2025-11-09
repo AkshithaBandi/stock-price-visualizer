@@ -114,60 +114,75 @@ st.header("🤖 LSTM Stock Price Prediction")
 if st.button("Predict Future Prices"):
     try:
         df_pred = yf.download(predict_ticker, start="2015-01-01", end=datetime.date.today())
+
         if df_pred.empty or 'Close' not in df_pred.columns:
-            st.warning("No data found for the selected ticker.")
+            st.warning("No data found or missing 'Close' column for the selected ticker.")
         else:
-            data = df_pred.filter(['Close'])
-            dataset = data.values
-            scaler = MinMaxScaler(feature_range=(0, 1))
-            scaled_data = scaler.fit_transform(dataset)
+            # Filter only Close column
+            data = df_pred.filter(['Close']).dropna()
 
-            training_data_len = int(np.ceil(len(dataset) * 0.8))
-            train_data = scaled_data[0:training_data_len, :]
+            # Check again to ensure valid data
+            if data.empty:
+                st.warning("No valid 'Close' price data available for this stock.")
+            else:
+                dataset = data.values
 
-            x_train, y_train = [], []
-            for i in range(60, len(train_data)):
-                x_train.append(train_data[i - 60:i, 0])
-                y_train.append(train_data[i, 0])
-            x_train, y_train = np.array(x_train), np.array(y_train)
-            x_train = np.reshape(x_train, (x_train.shape[0], x_train.shape[1], 1))
+                scaler = MinMaxScaler(feature_range=(0, 1))
+                scaled_data = scaler.fit_transform(dataset)
 
-            model = Sequential([
-                LSTM(50, return_sequences=True, input_shape=(x_train.shape[1], 1)),
-                LSTM(50, return_sequences=False),
-                Dense(25),
-                Dense(1)
-            ])
-            model.compile(optimizer='adam', loss='mean_squared_error')
+                training_data_len = int(np.ceil(len(dataset) * 0.8))
+                train_data = scaled_data[0:training_data_len, :]
 
-            with st.spinner("Training LSTM model... ⏳"):
-                model.fit(x_train, y_train, batch_size=32, epochs=3, verbose=0)
+                # Build training sequences
+                x_train, y_train = [], []
+                for i in range(60, len(train_data)):
+                    x_train.append(train_data[i - 60:i, 0])
+                    y_train.append(train_data[i, 0])
 
-            last_60_days = scaled_data[-60:]
-            input_seq = last_60_days
-            predictions = []
-            for _ in range(future_days):
-                X_test = np.array([input_seq[-60:, 0]])
-                X_test = np.reshape(X_test, (1, 60, 1))
-                pred_price = model.predict(X_test, verbose=0)
-                predictions.append(pred_price[0][0])
-                input_seq = np.append(input_seq, pred_price)[-60:]
+                if len(x_train) == 0 or len(y_train) == 0:
+                    st.warning("Insufficient data to train the LSTM model. Try a stock with longer history.")
+                else:
+                    x_train, y_train = np.array(x_train), np.array(y_train)
+                    x_train = np.reshape(x_train, (x_train.shape[0], x_train.shape[1], 1))
 
-            predictions = scaler.inverse_transform(np.array(predictions).reshape(-1, 1))
-            future_dates = pd.date_range(start=data.index[-1] + pd.Timedelta(days=1), periods=future_days)
-            pred_df = pd.DataFrame({'Date': future_dates, 'Predicted Close': predictions.flatten()})
+                    model = Sequential([
+                        LSTM(50, return_sequences=True, input_shape=(x_train.shape[1], 1)),
+                        LSTM(50, return_sequences=False),
+                        Dense(25),
+                        Dense(1)
+                    ])
+                    model.compile(optimizer='adam', loss='mean_squared_error')
 
-            st.subheader(f"📅 {predict_ticker} {future_days}-Day Price Prediction")
-            st.dataframe(pred_df.set_index('Date'))
+                    with st.spinner("Training LSTM model... ⏳"):
+                        model.fit(x_train, y_train, batch_size=32, epochs=3, verbose=0)
 
-            fig_pred = go.Figure()
-            fig_pred.add_trace(go.Scatter(x=data.index, y=data['Close'], name="Historical", line=dict(color='blue')))
-            fig_pred.add_trace(go.Scatter(x=pred_df['Date'], y=pred_df['Predicted Close'], name="Prediction", line=dict(color='red')))
-            fig_pred.update_layout(title=f"{predict_ticker} Price Prediction", xaxis_title="Date", yaxis_title="Price (USD)")
-            st.plotly_chart(fig_pred, use_container_width=True)
+                    # Prepare for future prediction
+                    last_60_days = scaled_data[-60:]
+                    input_seq = last_60_days
+                    predictions = []
+                    for _ in range(future_days):
+                        X_test = np.array([input_seq[-60:, 0]])
+                        X_test = np.reshape(X_test, (1, 60, 1))
+                        pred_price = model.predict(X_test, verbose=0)
+                        predictions.append(pred_price[0][0])
+                        input_seq = np.append(input_seq, pred_price)[-60:]
+
+                    predictions = scaler.inverse_transform(np.array(predictions).reshape(-1, 1))
+                    future_dates = pd.date_range(start=data.index[-1] + pd.Timedelta(days=1), periods=future_days)
+                    pred_df = pd.DataFrame({'Date': future_dates, 'Predicted Close': predictions.flatten()})
+
+                    st.subheader(f"📅 {predict_ticker} {future_days}-Day Price Prediction")
+                    st.dataframe(pred_df.set_index('Date'))
+
+                    fig_pred = go.Figure()
+                    fig_pred.add_trace(go.Scatter(x=data.index, y=data['Close'], name="Historical", line=dict(color='blue')))
+                    fig_pred.add_trace(go.Scatter(x=pred_df['Date'], y=pred_df['Predicted Close'], name="Prediction", line=dict(color='red')))
+                    fig_pred.update_layout(title=f"{predict_ticker} Price Prediction", xaxis_title="Date", yaxis_title="Price (USD)")
+                    st.plotly_chart(fig_pred, use_container_width=True)
 
     except Exception as e:
         st.error(f"Prediction error: {e}")
+
 
 # --------------------------------------------------
 # Footer
