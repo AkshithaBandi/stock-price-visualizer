@@ -127,5 +127,5 @@ if st.button("Predict Future Price"):
         st.plotly_chart(fig_pred, use_container_width=True)
 
     except Exception as e:
-        st.error(f"Prediction error: {e}") THIS IS MY APP.PY COD
+        st.error(f"Prediction error: {e}") # THIS IS MY APP.PY COD
 
