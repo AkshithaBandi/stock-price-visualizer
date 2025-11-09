@@ -11,7 +11,7 @@ from tensorflow.keras.layers import Dense, LSTM
 # Streamlit UI
 # --------------------------------------------------
 st.set_page_config(page_title="Stock Price Predictor", layout="wide")
-st.title("📈 Stock Price Prediction App")
+st.title("📈 Stock Price Prediction ")
 
 st.sidebar.header("Select Parameters")
 ticker = st.sidebar.text_input("Enter Stock Symbol (e.g., AAPL, GOOGL, MSFT):", "AAPL")
@@ -28,13 +28,18 @@ if data.empty:
     st.error("⚠️ No data found. Please check the ticker symbol or date range.")
     st.stop()
 
-st.write(data.tail())
+st.dataframe(data.tail(), use_container_width=True)
 
 # --------------------------------------------------
 # Plot Stock Prices
 # --------------------------------------------------
-st.subheader("📊 Stock Closing Price")
-st.line_chart(data['Close'])
+st.subheader("📊 Historical Closing Price")
+fig, ax = plt.subplots(figsize=(10, 5))
+ax.plot(data.index, data['Close'], label="Closing Price", color="cyan")
+ax.set_xlabel("Date")
+ax.set_ylabel("Price (USD)")
+ax.legend()
+st.pyplot(fig)
 
 # --------------------------------------------------
 # Data Preprocessing
@@ -57,7 +62,6 @@ def create_dataset(dataset, time_step=60):
 X_train, y_train = create_dataset(train_data)
 X_test, y_test = create_dataset(test_data)
 
-# Reshape for LSTM input
 X_train = np.reshape(X_train, (X_train.shape[0], X_train.shape[1], 1))
 X_test = np.reshape(X_test, (X_test.shape[0], X_test.shape[1], 1))
 
@@ -86,20 +90,31 @@ st.success("✅ Model trained successfully!")
 # --------------------------------------------------
 predictions = model.predict(X_test)
 predictions = scaler.inverse_transform(predictions)
-
 real_prices = scaler.inverse_transform(y_test.reshape(-1, 1))
+
+# Align prediction dates
+prediction_dates = data.index[-len(predictions):]
 
 # --------------------------------------------------
 # Display Results
 # --------------------------------------------------
-st.subheader("📉 Actual vs Predicted Prices")
-fig, ax = plt.subplots(figsize=(10, 5))
-ax.plot(real_prices, label="Actual Price", color="blue")
-ax.plot(predictions, label="Predicted Price", color="red")
-ax.set_xlabel("Days")
-ax.set_ylabel("Price")
-ax.legend()
-st.pyplot(fig)
+st.subheader("📉 Actual vs Predicted Closing Prices")
+
+result_df = pd.DataFrame({
+    "Date": prediction_dates,
+    "Actual Price (USD)": real_prices.flatten(),
+    "Predicted Price (USD)": predictions.flatten()
+}).set_index("Date")
+
+st.dataframe(result_df.tail(20), use_container_width=True)
+
+fig2, ax2 = plt.subplots(figsize=(10, 5))
+ax2.plot(result_df.index, result_df["Actual Price (USD)"], label="Actual", color="blue")
+ax2.plot(result_df.index, result_df["Predicted Price (USD)"], label="Predicted", color="red")
+ax2.set_xlabel("Date")
+ax2.set_ylabel("Stock Price (USD)")
+ax2.legend()
+st.pyplot(fig2)
 
 # --------------------------------------------------
 # Comparison: AAPL vs GOOGL
@@ -118,3 +133,4 @@ except Exception as e:
 # --------------------------------------------------
 st.markdown("---")
 st.caption("Built with ❤️ using Streamlit, TensorFlow, and yfinance")
+
