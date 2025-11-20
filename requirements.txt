@@ -1,0 +1,10 @@
+streamlit
+bcrypt
+groq
+python-dotenv
+pandas
+yfinance
+matplotlib
+
+
+keras~=3.12.0
